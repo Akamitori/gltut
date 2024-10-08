@@ -5,14 +5,13 @@ layout(location = 1) in vec4 color;
 
 smooth out vec4 interpColor;
 
-uniform mat4 cameraToClipMatrix;
-uniform mat4 worldToCameraMatrix;
 uniform mat4 modelToWorldMatrix;
+uniform mat4 worldToClipMatrix;
 
 void main()
 {
 	vec4 temp = modelToWorldMatrix * position;
-	temp = worldToCameraMatrix * temp;
-	gl_Position = cameraToClipMatrix * temp;
+	//temp = worldToCameraMatrix * temp;
+	gl_Position = worldToClipMatrix * temp;
 	interpColor = color;
 }

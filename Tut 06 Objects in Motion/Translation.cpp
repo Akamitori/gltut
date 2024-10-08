@@ -177,11 +177,13 @@ void init()
 	glBindVertexArray(vao);
 
 	size_t colorDataOffset = sizeof(float) * 3 * numberOfVertices;
+
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, (void*)colorDataOffset);
+	
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferObject);
 
 	glBindVertexArray(0);

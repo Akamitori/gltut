@@ -17,10 +17,15 @@ struct ProgramData
 {
 	GLuint theProgram;
 	GLuint modelToWorldMatrixUnif;
-	GLuint worldToCameraMatrixUnif;
-	GLuint cameraToClipMatrixUnif;
+	//GLuint worldToCameraMatrixUnif;
+	//GLuint cameraToClipMatrixUnif;
+	GLuint worldToClipMatrix;
 	GLuint baseColorUnif;
 };
+
+int w_cache;
+int h_cache;
+
 
 float g_fzNear = 1.0f;
 float g_fzFar = 1000.0f;
@@ -39,8 +44,9 @@ ProgramData LoadProgram(const std::string &strVertexShader, const std::string &s
 	ProgramData data;
 	data.theProgram = Framework::CreateProgram(shaderList);
 	data.modelToWorldMatrixUnif = glGetUniformLocation(data.theProgram, "modelToWorldMatrix");
-	data.worldToCameraMatrixUnif = glGetUniformLocation(data.theProgram, "worldToCameraMatrix");
-	data.cameraToClipMatrixUnif = glGetUniformLocation(data.theProgram, "cameraToClipMatrix");
+	data.worldToClipMatrix = glGetUniformLocation(data.theProgram, "worldToClipMatrix");
+	// data.worldToCameraMatrixUnif = glGetUniformLocation(data.theProgram, "worldToCameraMatrix");
+	// data.cameraToClipMatrixUnif = glGetUniformLocation(data.theProgram, "cameraToClipMatrix");
 	data.baseColorUnif = glGetUniformLocation(data.theProgram, "baseColor");
 
 	return data;
@@ -153,7 +159,7 @@ void DrawColumn(glutil::MatrixStack &modelMatrix, float fHeight = 5.0f)
 	//Draw the bottom of the column.
 	{
 		glutil::PushStack push(modelMatrix);
-
+		
 		modelMatrix.Scale(glm::vec3(1.0f, g_fColumnBaseHeight, 1.0f));
 		modelMatrix.Translate(glm::vec3(0.0f, 0.5f, 0.0f));
 
@@ -467,18 +473,24 @@ void display()
 
 	if(g_pConeMesh && g_pCylinderMesh && g_pCubeTintMesh && g_pCubeColorMesh && g_pPlaneMesh)
 	{
+		
+
 		const glm::vec3 &camPos = ResolveCamPosition();
+		
+		glutil::MatrixStack worldToClipSpaceMatrix;
+		worldToClipSpaceMatrix.Perspective(45.0f, (w_cache / (float)h_cache), g_fzNear, g_fzFar);
+		{
 
-		glutil::MatrixStack camMatrix;
-		camMatrix.SetMatrix(CalcLookAtMatrix(camPos, g_camTarget, glm::vec3(0.0f, 1.0f, 0.0f)));
-
-		glUseProgram(UniformColor.theProgram);
-		glUniformMatrix4fv(UniformColor.worldToCameraMatrixUnif, 1, GL_FALSE, glm::value_ptr(camMatrix.Top()));
-		glUseProgram(ObjectColor.theProgram);
-		glUniformMatrix4fv(ObjectColor.worldToCameraMatrixUnif, 1, GL_FALSE, glm::value_ptr(camMatrix.Top()));
-		glUseProgram(UniformColorTint.theProgram);
-		glUniformMatrix4fv(UniformColorTint.worldToCameraMatrixUnif, 1, GL_FALSE, glm::value_ptr(camMatrix.Top()));
-		glUseProgram(0);
+			glutil::PushStack worldMatrix(worldToClipSpaceMatrix);
+			worldToClipSpaceMatrix.ApplyMatrix(CalcLookAtMatrix(camPos, g_camTarget, glm::vec3(0.0f, 1.0f, 0.0f)));
+			glUseProgram(UniformColor.theProgram);
+			glUniformMatrix4fv(UniformColor.worldToClipMatrix, 1, GL_FALSE, glm::value_ptr(worldToClipSpaceMatrix.Top()));
+			glUseProgram(ObjectColor.theProgram);
+			glUniformMatrix4fv(ObjectColor.worldToClipMatrix, 1, GL_FALSE, glm::value_ptr(worldToClipSpaceMatrix.Top()));
+			glUseProgram(UniformColorTint.theProgram);
+			glUniformMatrix4fv(UniformColorTint.worldToClipMatrix, 1, GL_FALSE, glm::value_ptr(worldToClipSpaceMatrix.Top()));
+			glUseProgram(0);
+		}
 
 		glutil::MatrixStack modelMatrix;
 
@@ -519,7 +531,9 @@ void display()
 		
 			glUseProgram(ObjectColor.theProgram);
 			glUniformMatrix4fv(ObjectColor.modelToWorldMatrixUnif, 1, GL_FALSE, glm::value_ptr(modelMatrix.Top()));
-			glUniformMatrix4fv(ObjectColor.worldToCameraMatrixUnif, 1, GL_FALSE, glm::value_ptr(idenity));
+
+			// in practice it's just the perspective matrix multiplied by I
+			glUniformMatrix4fv(ObjectColor.worldToClipMatrix, 1, GL_FALSE, glm::value_ptr(worldToClipSpaceMatrix.Top()));
 			g_pCubeColorMesh->Render();
 			glUseProgram(0);
 			glEnable(GL_DEPTH_TEST);
@@ -531,17 +545,27 @@ void display()
 
 //Called whenever the window is resized. The new window size is given, in pixels.
 //This is an opportunity to call glViewport or glScissor to keep up with the change in size.
+
+
 void reshape (int w, int h)
 {
-	glutil::MatrixStack persMatrix;
-	persMatrix.Perspective(45.0f, (w / (float)h), g_fzNear, g_fzFar);
+	w_cache=w;
+	h_cache=h;
+	const glm::vec3 &camPos = ResolveCamPosition();
+	glutil::MatrixStack worldToClipSpaceMatrix;
+	worldToClipSpaceMatrix.Perspective(45.0f, (w / (float)h), g_fzNear, g_fzFar);
+	worldToClipSpaceMatrix.ApplyMatrix(CalcLookAtMatrix(camPos, g_camTarget, glm::vec3(0.0f, 1.0f, 0.0f)));
+	
+	// get world to camera matrix
+	// calculate  perspmatrix * world to camera matrix
+	// pass that in
 
 	glUseProgram(UniformColor.theProgram);
-	glUniformMatrix4fv(UniformColor.cameraToClipMatrixUnif, 1, GL_FALSE, glm::value_ptr(persMatrix.Top()));
+	glUniformMatrix4fv(UniformColor.worldToClipMatrix, 1, GL_FALSE, glm::value_ptr(worldToClipSpaceMatrix.Top()));
 	glUseProgram(ObjectColor.theProgram);
-	glUniformMatrix4fv(ObjectColor.cameraToClipMatrixUnif, 1, GL_FALSE, glm::value_ptr(persMatrix.Top()));
+	glUniformMatrix4fv(ObjectColor.worldToClipMatrix, 1, GL_FALSE, glm::value_ptr(worldToClipSpaceMatrix.Top()));
 	glUseProgram(UniformColorTint.theProgram);
-	glUniformMatrix4fv(UniformColorTint.cameraToClipMatrixUnif, 1, GL_FALSE, glm::value_ptr(persMatrix.Top()));
+	glUniformMatrix4fv(UniformColorTint.worldToClipMatrix, 1, GL_FALSE, glm::value_ptr(worldToClipSpaceMatrix.Top()));
 	glUseProgram(0);
 
 	glViewport(0, 0, (GLsizei) w, (GLsizei) h);
